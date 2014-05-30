@@ -170,8 +170,7 @@
     
     [[self layers] addObject:layer];
     
-    NSError *error = nil;
-    [self addLayerToFlattenedContext:layer error:&error];
+    [self addLayerToFlattenedContext:layer error:NULL];
     
     return layer;
 }
@@ -191,8 +190,7 @@
 
 - (SFPSDGroupClosingLayer *)closeCurrentGroupLayer
 {
-    NSError *error = nil;
-    return [self closeCurrentGroupLayerWithError:&error];
+    return [self closeCurrentGroupLayerWithError:NULL];
 }
 
 - (SFPSDGroupClosingLayer *)closeCurrentGroupLayerWithError:(NSError * __autoreleasing *)error
@@ -216,9 +214,11 @@
     }
     
     if (nil == lastOpenedGroup) {
-        NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
-        [errorDetail setValue:@"There is no opened layer to close" forKey:NSLocalizedDescriptionKey];
-        *error = [NSError errorWithDomain:@"net.shinyfrog.SFPSDWriter" code:3 userInfo:errorDetail];
+        if (error != NULL) {
+            NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
+            [errorDetail setValue:@"There is no opened layer to close" forKey:NSLocalizedDescriptionKey];
+            *error = [NSError errorWithDomain:@"net.shinyfrog.SFPSDWriter" code:3 userInfo:errorDetail];
+        }
         return nil;
     }
     
@@ -262,9 +262,7 @@
     if ([[self visibleLayers] count]) {
         for (int i = 0; i < [[self visibleLayers] count]; i++) {
             [[self.layers objectAtIndex:i] setDocumentSize:[self documentSize]];
-            
-            NSError *error = nil;
-            [self addLayerToFlattenedContext:[[self visibleLayers] objectAtIndex:i] error:&error];
+            [self addLayerToFlattenedContext:[[self visibleLayers] objectAtIndex:i] error:NULL];
         }
     }
 }
@@ -272,9 +270,11 @@
 - (BOOL)addLayerToFlattenedContext:(SFPSDLayer *)layer error:(NSError * __autoreleasing *)error {
     
     if ((self.documentSize.width <= 0) || (self.documentSize.height <= 0)) {
-        NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
-        [errorDetail setValue:@"You must specify a non-zero documentSize before adding a layer" forKey:NSLocalizedDescriptionKey];
-        *error = [NSError errorWithDomain:@"net.shinyfrog.SFPSDWriter" code:1 userInfo:errorDetail];
+        if (error != NULL) {
+            NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
+            [errorDetail setValue:@"You must specify a non-zero documentSize before adding a layer" forKey:NSLocalizedDescriptionKey];
+            *error = [NSError errorWithDomain:@"net.shinyfrog.SFPSDWriter" code:1 userInfo:errorDetail];
+        }
         return  NO;
     }
 
@@ -357,8 +357,7 @@
 
 - (NSData *)createPSDData
 {
-    NSError *error = nil;
-    return [self createPSDDataWithError:&error];
+    return [self createPSDDataWithError:NULL];
 }
 
 - (NSData *)createPSDDataWithError:(NSError * __autoreleasing *)error
@@ -366,9 +365,11 @@
 	NSMutableData *result = [NSMutableData data];
     
     if ([[self visibleLayers] count] == 0) {
-        NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
-        [errorDetail setValue:@"No visible layers in the document" forKey:NSLocalizedDescriptionKey];
-        *error = [NSError errorWithDomain:@"net.shinyfrog.SFPSDWriter" code:2 userInfo:errorDetail];
+        if (error != NULL) {
+            NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
+            [errorDetail setValue:@"No visible layers in the document" forKey:NSLocalizedDescriptionKey];
+            *error = [NSError errorWithDomain:@"net.shinyfrog.SFPSDWriter" code:2 userInfo:errorDetail];
+        }
         return  result;
     }
 	
