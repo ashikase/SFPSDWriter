@@ -60,4 +60,10 @@
     return YES;
 }
 
+- (BOOL)shouldCrop {
+    // Ignore value set by user; group layers currently cannot be cropped.
+    // TODO: Add support for cropping groups layers.
+    return NO;
+}
+
 @end

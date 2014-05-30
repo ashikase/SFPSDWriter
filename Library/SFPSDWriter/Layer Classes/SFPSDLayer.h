@@ -47,6 +47,13 @@
 /** Number of channels of the layer. Defaults to 4. */
 @property (nonatomic, assign) NSInteger numberOfChannels;
 
+/**
+ * If set to YES, the layer boundaries will be adjusted to fit the image data.
+ * If set to NO, the layer boundaries will equal the document's, and any extra
+ * space will be filled with transparent (or white, if no-alpha channel) pixels.
+ */
+@property (nonatomic, assign) BOOL shouldCrop;
+
 /** 
  * Allows you to automatically vertically flip the image data when it's being
  * written to PSD. This is important if the source images are coming from OpenGL or

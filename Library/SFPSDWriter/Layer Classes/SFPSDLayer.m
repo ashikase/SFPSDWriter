@@ -110,7 +110,7 @@
 - (BOOL)hasValidSize
 {
     CGRect imageCropRegion = [self imageCropRegion];
-    
+
     // The only test we need to perform to know if the image is inside the document's bounds
     if (imageCropRegion.size.width <= 0 || imageCropRegion.size.height <= 0) {
         return NO;
@@ -165,11 +165,17 @@
 - (void)writeLayerInformationOn:(NSMutableData *)layerInformation
 {
     // print out top left bottom right 4x4
-    [layerInformation sfAppendValue:0 length:4];
-    [layerInformation sfAppendValue:0 length:4];
-    [layerInformation sfAppendValue:self.documentSize.height length:4];
-    [layerInformation sfAppendValue:self.documentSize.width length:4];
-    
+    CGRect rect;
+    if (self.shouldCrop) {
+        rect = [self imageInDocumentRegion];
+    } else {
+        rect = (CGRect){CGPointZero, self.documentSize};
+    }
+    [layerInformation sfAppendValue:rect.origin.y length:4];
+    [layerInformation sfAppendValue:rect.origin.x length:4];
+    [layerInformation sfAppendValue:rect.origin.y + rect.size.height length:4];
+    [layerInformation sfAppendValue:rect.origin.x + rect.size.width length:4];
+
     // print out number of channels in the layer
     [layerInformation sfAppendValue:[self numberOfChannels] length:2];
     
@@ -241,97 +247,133 @@
 
 #pragma mark - Protecred functions [should never be used from outside the class]
 
-- (NSArray *)layerChannels {
-    
+- (NSArray *)layerChannels
+{
     NSMutableArray *channels = [NSMutableArray array];
-    
-    // This is for later when we write the transparent top and bottom of the shape
-	int transparentRowSize = sizeof(Byte) * (int)ceilf(self.documentSize.width * 4);
-	Byte *transparentRow = malloc(transparentRowSize);
-    
-    if ([self numberOfChannels] > 3) {
-        memset(transparentRow, 0, transparentRowSize);
-    }
-    else {
-        memset(transparentRow, 255, transparentRowSize); // 255 because we want the not transparent layer be white (0 - will be black)
-    }
-	
-	NSData *transparentRowData = [NSData dataWithBytesNoCopy:transparentRow length:transparentRowSize freeWhenDone:NO];
-	NSData *packedTransparentRowData = [transparentRowData sfPackedBitsForRange:NSMakeRange(0, transparentRowSize) skip:4];
-    
+
     CGRect bounds = [self imageInDocumentRegion];
     bounds.origin.x = floorf(bounds.origin.x);
     bounds.origin.y = floorf(bounds.origin.y);
     bounds.size.width = floorf(bounds.size.width);
     bounds.size.height = floorf(bounds.size.height);
-    
+
     int imageRowBytes = bounds.size.width * 4;
-    
-    NSRange leftPackRange = NSMakeRange(0, (int)bounds.origin.x * 4);
-    NSData *packedLeftOfShape = [transparentRowData sfPackedBitsForRange:leftPackRange skip:4];
-    NSRange rightPackRange = NSMakeRange(0, (int)(self.documentSize.width - bounds.origin.x - bounds.size.width) * 4);
-    NSData *packedRightOfShape = [transparentRowData sfPackedBitsForRange:rightPackRange skip:4];
-    
-    for (int channel = 0; channel < [self numberOfChannels]; channel++)
-    {
-        NSMutableData *byteCounts = [[NSMutableData alloc] initWithCapacity:self.documentSize.height * self.numberOfChannels * 2];
-        NSMutableData *scanlines = [[NSMutableData alloc] init];
-        
-        for (int row = 0; row < self.documentSize.height; row++)
+
+    if (self.shouldCrop) {
+        for (int channel = 0; channel < [self numberOfChannels]; channel++)
         {
-            // If it's above or below the shape's bounds, just write black with 0-alpha
-            if (row < (int)bounds.origin.y || row >= (int)(bounds.origin.y + bounds.size.height)) {
-                [byteCounts sfAppendValue:[packedTransparentRowData length] length:2];
-                [scanlines appendData:packedTransparentRowData];
-            } else {
+            NSMutableData *byteCounts = [[NSMutableData alloc] initWithCapacity:bounds.size.height * self.numberOfChannels * 2];
+            NSMutableData *scanlines = [[NSMutableData alloc] init];
+
+            for (int row = 0; row < bounds.size.height; row++)
+            {
                 int byteCount = 0;
-                
-                // Appending the transparent space before the shape
-                if (bounds.origin.x > 0.01) {
-                    // Append the transparent portion to the left of the shape
-                    [scanlines appendData:packedLeftOfShape];
-                    byteCount += [packedLeftOfShape length];
-                }
-                
+
                 // Appending the layer's image row
-                NSRange packRange = NSMakeRange((row - (int)bounds.origin.y) * imageRowBytes + channel, imageRowBytes);
+                NSRange packRange = NSMakeRange(row * imageRowBytes + channel, imageRowBytes);
                 NSData *packed = [[self visibleImageData] sfPackedBitsForRange:packRange skip:4];
                 [scanlines appendData:packed];
                 byteCount += [packed length];
-                
-                // Appending the stransparent space after the shape
-                if (bounds.origin.x + bounds.size.width < self.documentSize.width) {
-                    // Append the transparent portion to the right of the shape
-                    [scanlines appendData:packedRightOfShape];
-                    byteCount += [packedRightOfShape length];
-                }
-                
+
                 [byteCounts sfAppendValue:byteCount length:2];
                 
                 packed = nil;
             }
+            
+            NSMutableData *channelData = [[NSMutableData alloc] init];
+            // write channel compression format
+            [channelData sfAppendValue:1 length:2];
+            
+            // write channel byte counts
+            [channelData appendData:byteCounts];
+            // write channel scanlines
+            [channelData appendData:scanlines];
+            
+            // add completed channel data to channels array
+            [channels addObject:channelData];
+
+            byteCounts = scanlines = nil;
+        }
+    } else {
+        // This is for later when we write the transparent top and bottom of the shape
+        int transparentRowSize = sizeof(Byte) * (int)ceilf(self.documentSize.width * 4);
+        Byte *transparentRow = malloc(transparentRowSize);
+        
+        if ([self numberOfChannels] > 3) {
+            memset(transparentRow, 0, transparentRowSize);
+        } else {
+            memset(transparentRow, 255, transparentRowSize); // 255 because we want the not transparent layer be white (0 - will be black)
         }
         
-        NSMutableData *channelData = [[NSMutableData alloc] init];
-        // write channel compression format
-        [channelData sfAppendValue:1 length:2];
-        
-        // write channel byte counts
-        [channelData appendData:byteCounts];
-        // write channel scanlines
-        [channelData appendData:scanlines];
-        
-        // add completed channel data to channels array
-        [channels addObject:channelData];
+        NSData *transparentRowData = [NSData dataWithBytesNoCopy:transparentRow length:transparentRowSize freeWhenDone:NO];
+        NSData *packedTransparentRowData = [transparentRowData sfPackedBitsForRange:NSMakeRange(0, transparentRowSize) skip:4];
+    
+        NSRange leftPackRange = NSMakeRange(0, (int)bounds.origin.x * 4);
+        NSData *packedLeftOfShape = [transparentRowData sfPackedBitsForRange:leftPackRange skip:4];
+        NSRange rightPackRange = NSMakeRange(0, (int)(self.documentSize.width - bounds.origin.x - bounds.size.width) * 4);
+        NSData *packedRightOfShape = [transparentRowData sfPackedBitsForRange:rightPackRange skip:4];
+    
+        for (int channel = 0; channel < [self numberOfChannels]; channel++)
+        {
+            NSMutableData *byteCounts = [[NSMutableData alloc] initWithCapacity:self.documentSize.height * self.numberOfChannels * 2];
+            NSMutableData *scanlines = [[NSMutableData alloc] init];
 
-        byteCounts = scanlines = nil;
+            for (int row = 0; row < self.documentSize.height; row++)
+            {
+                // If it's above or below the shape's bounds, just write black with 0-alpha
+                if (row < (int)bounds.origin.y || row >= (int)(bounds.origin.y + bounds.size.height)) {
+                    [byteCounts sfAppendValue:[packedTransparentRowData length] length:2];
+                    [scanlines appendData:packedTransparentRowData];
+                } else {
+                    int byteCount = 0;
+
+                    // Appending the transparent space before the shape
+                    if (bounds.origin.x > 0.01) {
+                        // Append the transparent portion to the left of the shape
+                        [scanlines appendData:packedLeftOfShape];
+                        byteCount += [packedLeftOfShape length];
+                    }
+                    
+                    // Appending the layer's image row
+                    NSRange packRange = NSMakeRange((row - (int)bounds.origin.y) * imageRowBytes + channel, imageRowBytes);
+                    NSData *packed = [[self visibleImageData] sfPackedBitsForRange:packRange skip:4];
+                    [scanlines appendData:packed];
+                    byteCount += [packed length];
+
+                    // Appending the transparent space after the shape
+                    if (bounds.origin.x + bounds.size.width < self.documentSize.width) {
+                        // Append the transparent portion to the right of the shape
+                        [scanlines appendData:packedRightOfShape];
+                        byteCount += [packedRightOfShape length];
+                    }
+                    
+                    [byteCounts sfAppendValue:byteCount length:2];
+                    
+                    packed = nil;
+                }
+            }
+            
+            NSMutableData *channelData = [[NSMutableData alloc] init];
+            // write channel compression format
+            [channelData sfAppendValue:1 length:2];
+            
+            // write channel byte counts
+            [channelData appendData:byteCounts];
+            // write channel scanlines
+            [channelData appendData:scanlines];
+            
+            // add completed channel data to channels array
+            [channels addObject:channelData];
+
+            byteCounts = scanlines = nil;
+        }
+
+        packedLeftOfShape = packedRightOfShape = nil;
+        transparentRowData = packedTransparentRowData = nil;
+        
+        free(transparentRow);
     }
-    
-    packedLeftOfShape = packedRightOfShape = nil;
-    transparentRowData = packedTransparentRowData = nil;
-    
-    free(transparentRow);
-    
+
     return channels;
 }
 
