@@ -16,7 +16,9 @@
 #import "NSData+SFPackedBits.h"
 #import "NSString+SFPascalString.h"
 
-@implementation SFPSDLayer
+@implementation SFPSDLayer {
+    CGImageRef _croppedImage;
+}
 
 @synthesize image = _image, name = _name, opacity = _opacity, offset = _offset, documentSize = _documentSize, numberOfChannels = _numberOfChannels;
 @synthesize shouldFlipLayerData = _shouldFlipLayerData, shouldUnpremultiplyLayerData = _shouldUnpremultiplyLayerData;
@@ -51,6 +53,11 @@
     if (_image != nil) {
         CGImageRelease(_image);
         _image = nil;
+    }
+
+    if (_croppedImage != NULL) {
+        CGImageRelease(_croppedImage);
+        _croppedImage = NULL;
     }
 }
 
@@ -102,7 +109,10 @@
 
 - (CGImageRef)croppedImage
 {
-    return CGImageCreateWithImageInRect([self image], [self imageCropRegion]);
+    if (_croppedImage == NULL) {
+        _croppedImage = CGImageCreateWithImageInRect([self image], [self imageCropRegion]);
+    }
+    return _croppedImage;
 }
 
 #pragma mark - Size retrieving functions
