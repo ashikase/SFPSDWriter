@@ -111,9 +111,10 @@ typedef enum SFPSDResolutionUnit SFPSDResolutionUnit;
  * @param name The name you'd like to give the layer.
  * @param opacity The opacity of the layer, from [0-1]
  * @param offset The offset of the layer within the document. Use this to position layers within the PSD.
+ * @param cropping Whether or not the layer should be cropped to fit the image.
  * 
  * @return The newly created layer in order to customize it after the creation. */
-- (SFPSDLayer *)addLayerWithCGImage:(CGImageRef)image andName:(NSString*)name andOpacity:(float)opacity andOffset:(CGPoint)offset;
+- (SFPSDLayer *)addLayerWithCGImage:(CGImageRef)image andName:(NSString*)name andOpacity:(float)opacity andOffset:(CGPoint)offset andCropping:(BOOL)cropping;
 
 /**
  * Opens a new PSD group.

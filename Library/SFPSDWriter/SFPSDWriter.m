@@ -152,10 +152,10 @@
 
 - (SFPSDLayer *)addLayerWithCGImage:(CGImageRef)image andName:(NSString*)name
 {
-    return [self addLayerWithCGImage:image andName:name andOpacity:1.0 andOffset:CGPointMake(0, 0)];
+    return [self addLayerWithCGImage:image andName:name andOpacity:1.0 andOffset:CGPointMake(0, 0) andCropping:NO];
 }
 
-- (SFPSDLayer *)addLayerWithCGImage:(CGImageRef)image andName:(NSString*)name andOpacity:(float)opacity andOffset:(CGPoint)offset
+- (SFPSDLayer *)addLayerWithCGImage:(CGImageRef)image andName:(NSString*)name andOpacity:(float)opacity andOffset:(CGPoint)offset andCropping:(BOOL)cropping
 {
     SFPSDLayer * layer = [[SFPSDLayer alloc] init];
     
@@ -165,6 +165,7 @@
     [layer setOpacity: opacity];
     [layer setName: name];
     [layer setOffset:offset];
+    [layer setShouldCrop:cropping];
     [layer setNumberOfChannels:[self numberOfChannels]];
     
     [[self layers] addObject:layer];
